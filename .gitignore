@@ -1,0 +1,19 @@
+# secrets — never commit
+.env
+lead_engine/.env
+*.key
+
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# runtime artifacts / logs
+lead_engine/output/*.log
+lead_engine/output/streamlit_boot.log
+lead_engine/output/ui_run.log
+
+# OS
+.DS_Store
+Thumbs.db

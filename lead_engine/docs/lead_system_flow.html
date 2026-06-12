@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+  @page { size: A4; margin: 16mm 14mm; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: #1c2230; font-size: 11.5px; line-height: 1.5; margin: 0;
+  }
+  h1 { font-size: 26px; margin: 0 0 2px; letter-spacing: -.5px; }
+  h2 { font-size: 15px; margin: 22px 0 10px; color: #5b3df5; border-bottom: 2px solid #ece8ff; padding-bottom: 5px; }
+  .sub { color: #6b7280; font-size: 12px; margin-bottom: 14px; }
+  .lead { background: #f6f4ff; border-left: 4px solid #5b3df5; padding: 10px 14px; border-radius: 6px; margin: 14px 0; font-size: 12px; }
+  .lead b { color: #5b3df5; }
+
+  /* pipeline */
+  .stage { display: flex; align-items: stretch; margin: 8px 0; page-break-inside: avoid; }
+  .num { flex: 0 0 34px; background: #5b3df5; color: #fff; border-radius: 8px; font-weight: 700;
+         font-size: 15px; display: flex; align-items: center; justify-content: center; margin-right: 12px; }
+  .body { flex: 1; border: 1px solid #e6e3f2; border-radius: 8px; padding: 9px 13px; }
+  .body .t { font-weight: 700; font-size: 12.5px; }
+  .body .t span { float: right; font-weight: 600; font-size: 10px; color: #fff; background: #18a058;
+                  padding: 1px 8px; border-radius: 10px; }
+  .body .t span.paid { background: #d97706; }
+  .body .d { color: #4b5563; margin-top: 2px; }
+  .arrow { text-align: center; color: #b9b3e6; font-size: 13px; line-height: .6; margin: 1px 0 1px 16px; }
+
+  table { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 11px; }
+  th { background: #5b3df5; color: #fff; text-align: left; padding: 6px 9px; font-weight: 600; }
+  td { padding: 6px 9px; border-bottom: 1px solid #eee; vertical-align: top; }
+  tr:nth-child(even) td { background: #faf9ff; }
+  .cost td:last-child, .cost th:last-child { text-align: right; white-space: nowrap; }
+  .tot td { font-weight: 700; border-top: 2px solid #5b3df5; background: #f6f4ff !important; }
+
+  .cards { display: flex; gap: 12px; margin: 8px 0; }
+  .card { flex: 1; border: 1px solid #e6e3f2; border-radius: 8px; padding: 11px 13px; page-break-inside: avoid; }
+  .card h3 { margin: 0 0 6px; font-size: 12.5px; }
+  .card .price { font-size: 17px; font-weight: 700; color: #5b3df5; }
+  .card ul { margin: 7px 0 0; padding-left: 16px; color: #4b5563; }
+  .card li { margin: 2px 0; }
+  .green { color: #18a058; font-weight: 700; }
+  .amber { color: #d97706; font-weight: 700; }
+  code { background: #f1eefe; padding: 1px 5px; border-radius: 4px; font-size: 10.5px; color: #4b2bd6; }
+  .foot { margin-top: 14px; color: #9aa0ac; font-size: 9.5px; border-top: 1px solid #eee; padding-top: 6px; }
+  .pill { display:inline-block; background:#ece8ff; color:#5b3df5; border-radius:10px; padding:1px 9px; font-size:10px; font-weight:600; margin-right:4px;}
+</style>
+</head>
+<body>
+
+  <h1>Lead Intelligence System</h1>
+  <div class="sub">US Personal-Injury Law Firms &nbsp;·&nbsp; 5–50 attorneys &nbsp;·&nbsp; built on ScrapeGraphAI + gpt-4o-mini &nbsp;·&nbsp; runs locally, outputs a CSV</div>
+
+  <div class="lead">
+    <b>In one line:</b> find PI law firms → fetch &amp; qualify each site → identify the decision-maker and their email → verify it → score &amp; rank → a clean CSV of outreach-ready leads. No agency, no Apify/Apollo seat, ~$10–50/month.
+  </div>
+
+  <h2>The Pipeline — 6 stages</h2>
+
+  <div class="stage"><div class="num">1</div><div class="body">
+    <div class="t">DISCOVER <span>free</span></div>
+    <div class="d"><b>Google Places API</b> (firm name, website, phone, rating) <i>or</i> <b>Apollo&nbsp;+&nbsp;ExportApollo</b> (name, email, title, website — ~$3.49/1k). Produces a raw list of candidate firms.</div>
+  </div></div>
+  <div class="arrow">▼</div>
+
+  <div class="stage"><div class="num">2</div><div class="body">
+    <div class="t">ENRICH <span>free</span></div>
+    <div class="d"><b>ScrapeGraphAI + Playwright</b> fetch each firm's site. Plain httpx first; a real headless browser falls back automatically for Cloudflare-blocked and JavaScript-rendered sites.</div>
+  </div></div>
+  <div class="arrow">▼</div>
+
+  <div class="stage"><div class="num">3</div><div class="body">
+    <div class="t">QUALIFY <span class="paid">~$10/mo</span></div>
+    <div class="d"><b>gpt-4o-mini</b> reads the homepage + team page: is it a law firm? practice areas? <b>attorney count</b> (the real 5–50 gate) and the <b>decision-maker's name</b>. Plus free regex signals: FAQ, schema, Google-Ads pixel.</div>
+  </div></div>
+  <div class="arrow">▼</div>
+
+  <div class="stage"><div class="num">4</div><div class="body">
+    <div class="t">FIND EMAIL <span>free first</span></div>
+    <div class="d">Published email on the site (incl. Cloudflare-decoded) → else <b>pattern-guess</b> from the decision-maker's name (<code>jsmith@</code>, <code>john.smith@</code>) → optional Hunter/Apollo fallback for misses.</div>
+  </div></div>
+  <div class="arrow">▼</div>
+
+  <div class="stage"><div class="num">5</div><div class="body">
+    <div class="t">VERIFY <span>free</span></div>
+    <div class="d"><b>Syntax → MX → SMTP probe</b>. Confirms the mailbox is real and flags catch-all domains. Send confidently to <code>valid</code>; pay a few cents (MillionVerifier) only on the ambiguous bucket.</div>
+  </div></div>
+  <div class="arrow">▼</div>
+
+  <div class="stage"><div class="num">6</div><div class="body">
+    <div class="t">SCORE &amp; EXPORT <span>free</span></div>
+    <div class="d">Weighted score from the signals → <b>Tier A / B / C</b>. Permanent dedup by domain + email. Appends to <code>leads.csv</code> — firm, decision-maker, verified email, phone, score, tier, practice-area type.</div>
+  </div></div>
+
+  <div class="foot">AIZEN Lead Engine · built with Claude Code · scrape responsibly &amp; respect each site's terms · page 1 / 2</div>
+
+  <div style="page-break-before: always;"></div>
+
+  <h2>The Stack &amp; What Each Piece Costs</h2>
+  <table class="cost">
+    <tr><th>Stage</th><th>Tool</th><th>Job</th><th>Cost / mo</th></tr>
+    <tr><td>Discover</td><td>Google Places API</td><td>Source firms (free tier covers volume)</td><td class="green">$0</td></tr>
+    <tr><td>Scrape / render</td><td>ScrapeGraphAI + Playwright</td><td>Fetch sites, beat Cloudflare/JS</td><td class="green">$0</td></tr>
+    <tr><td>Qualify + extract</td><td>OpenAI gpt-4o-mini</td><td>ICP gate, attorney count, DM name</td><td class="amber">~$10</td></tr>
+    <tr><td>Find email</td><td>Free pattern-guess</td><td>Decision-maker address</td><td class="green">$0</td></tr>
+    <tr><td>Verify</td><td>SMTP + MX (built-in)</td><td>Confirm deliverability</td><td class="green">$0</td></tr>
+    <tr><td>Store</td><td>Local CSV</td><td>Lead list + dedup</td><td class="green">$0</td></tr>
+    <tr class="tot"><td colspan="3">TOTAL — lean / all-free sourcing</td><td>≈ $10/mo</td></tr>
+  </table>
+
+  <h2>Three Ways to Run It (pick by budget)</h2>
+  <div class="cards">
+    <div class="card">
+      <h3>Lean &amp; free</h3>
+      <div class="price">~$10/mo</div>
+      <ul>
+        <li>Google Places + free finder</li>
+        <li>Free SMTP verification</li>
+        <li>Best $0-extra coverage</li>
+        <li class="amber">Lower email hit-rate on catch-all firms</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Apollo source <span class="pill">cheapest leads</span></h3>
+      <div class="price">~$12–15/mo</div>
+      <ul>
+        <li>ExportApollo ~$3.49/1k leads</li>
+        <li>Free SMTP verification</li>
+        <li>Name+email+website in one CSV</li>
+        <li class="amber">Unverified; coverage on tiny firms varies; manual batch export</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Hunter source <span class="pill">highest quality</span></h3>
+      <div class="price">~$45–60/mo</div>
+      <ul>
+        <li>Hunter Starter (2,000 finds)</li>
+        <li>Auto-verified on arrival</li>
+        <li>API, fully automatable</li>
+        <li class="green">Best for catch-all / Google-hosted firms</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2>Sourcing: Google Places vs ExportApollo</h2>
+  <table>
+    <tr><th></th><th>Google Places</th><th>ExportApollo</th></tr>
+    <tr><td>Gives</td><td>Firm + website + phone</td><td>Firm + website + decision-maker + email</td></tr>
+    <tr><td>Cost</td><td>Free tier</td><td>~$3.49 / 1,000 leads</td></tr>
+    <tr><td>Emails</td><td>None (we find them)</td><td>Included but <b>unverified</b></td></tr>
+    <tr><td>Delivery</td><td>Live API</td><td>CSV by email, 8–36h (manual)</td></tr>
+    <tr><td>ICP precision</td><td>High (we re-check attorneys from site)</td><td>Headcount counts staff, not attorneys — re-check needed</td></tr>
+    <tr><td>Best for</td><td>Automated, accurate local firms</td><td>Cheapest bulk leads, tolerant of manual step</td></tr>
+  </table>
+
+  <div class="lead" style="margin-top:14px">
+    <b>Recommended start:</b> run a <b>$2 / 500-lead ExportApollo test</b> through the pipeline and measure two numbers — % that are genuine 5–50 <i>attorney</i> PI firms, and % of emails that pass verification. If both look good, Apollo becomes the cheap primary source; if coverage on small firms is thin, keep Google Places primary and use Apollo to fill gaps.
+  </div>
+
+  <h2>Run It</h2>
+  <table>
+    <tr><th>Step</th><th>Command</th></tr>
+    <tr><td>Discover + qualify + score</td><td><code>python -m lead_engine.run</code></td></tr>
+    <tr><td>Find + verify contacts</td><td><code>python -m lead_engine.verify_contacts</code></td></tr>
+    <tr><td>Import an Apollo CSV</td><td><code>python -m lead_engine.import_apollo &lt;file.csv&gt;</code></td></tr>
+  </table>
+  <div class="sub" style="margin-top:6px">Output → <code>lead_engine/output/leads.csv</code> · re-running is safe (dedup) · each lead carries its practice-area type, score, tier, decision-maker, and verified email.</div>
+
+  <div class="foot">AIZEN Lead Engine · built with Claude Code · figures are estimates at ~2–3k leads/month · page 2 / 2</div>
+
+</body>
+</html>

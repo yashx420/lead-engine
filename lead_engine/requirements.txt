@@ -1,0 +1,10 @@
+openai>=1.50
+httpx>=0.27
+beautifulsoup4>=4.12
+python-dotenv>=1.0
+pydantic>=2.6
+playwright>=1.40
+streamlit>=1.34
+pandas>=2.0
+openpyxl>=3.1
+
