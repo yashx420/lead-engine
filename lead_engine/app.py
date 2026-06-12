@@ -24,6 +24,16 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from lead_engine import config  # noqa: E402
 
+# On Streamlit Cloud, API keys live in st.secrets. Mirror them into os.environ so
+# the pipeline subprocess (run.py / verify_contacts.py) inherits them. Locally,
+# keys come from lead_engine/.env and this is a no-op.
+for _k in ("GOOGLE_PLACES_API_KEY", "OPENAI_API_KEY", "HUNTER_API", "APP_PASSWORD"):
+    try:
+        if _k not in os.environ and _k in st.secrets:  # type: ignore[operator]
+            os.environ[_k] = str(st.secrets[_k])
+    except Exception:
+        pass
+
 RUN_LOG = config.OUT_DIR / "ui_run.log"
 ALL_PRACTICE_AREAS = [
     "personal injury", "immigration", "criminal defense", "family law",
@@ -195,11 +205,13 @@ def leads_tab(df: pd.DataFrame | None, path: Path | None) -> None:
     disp["Attys"] = pd.to_numeric(view.get("attorney_count", ""), errors="coerce")
     disp["Rating"] = pd.to_numeric(view.get("google_rating", ""), errors="coerce")
     disp["Score"] = pd.to_numeric(view.get("score", ""), errors="coerce")
-    disp["Tier"] = view.get("priority_tier", "").map(lambda t: TIER_BADGE.get(t, t))
+    disp["Tier"] = (view["priority_tier"].map(lambda t: TIER_BADGE.get(t, t))
+                    if "priority_tier" in view.columns else "")
     if has_contacts:
         disp["Decision maker"] = view.get("decision_maker", "")
         disp["Email"] = view.get("email", "")
-        disp["Status"] = view.get("email_status", "").map(lambda s: STATUS_BADGE.get(s, s))
+        disp["Status"] = (view["email_status"].map(lambda s: STATUS_BADGE.get(s, s))
+                          if "email_status" in view.columns else "")
         disp["Conf"] = pd.to_numeric(view.get("email_confidence", ""), errors="coerce")
     disp["Phone"] = view.get("phone", "")
     disp["Website"] = view.get("website", "")
