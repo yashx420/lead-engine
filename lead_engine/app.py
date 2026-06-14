@@ -24,15 +24,30 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from lead_engine import config  # noqa: E402
 
-# On Streamlit Cloud, API keys live in st.secrets. Mirror them into os.environ so
-# the pipeline subprocess (run.py / verify_contacts.py) inherits them. Locally,
-# keys come from lead_engine/.env and this is a no-op.
-for _k in ("GOOGLE_PLACES_API_KEY", "OPENAI_API_KEY", "HUNTER_API", "APP_PASSWORD"):
+REQUIRED_KEYS = ("GOOGLE_PLACES_API_KEY", "OPENAI_API_KEY")
+OPTIONAL_KEYS = ("HUNTER_API",)
+ALL_KEYS = REQUIRED_KEYS + OPTIONAL_KEYS + ("APP_PASSWORD",)
+
+
+def get_secret(k: str) -> str:
+    """Key from env (local .env) or Streamlit secrets (Cloud). Empty string if unset."""
+    v = os.environ.get(k, "")
+    if v:
+        return v
     try:
-        if _k not in os.environ and _k in st.secrets:  # type: ignore[operator]
-            os.environ[_k] = str(st.secrets[_k])
+        if k in st.secrets:                 # type: ignore[operator]
+            return str(st.secrets[k])
     except Exception:
         pass
+    return ""
+
+
+# Mirror secrets into os.environ at startup (belt-and-suspenders; launch() also
+# injects them explicitly into the subprocess env below).
+for _k in ALL_KEYS:
+    _v = get_secret(_k)
+    if _v and _k not in os.environ:
+        os.environ[_k] = _v
 
 RUN_LOG = config.OUT_DIR / "ui_run.log"
 ALL_PRACTICE_AREAS = [
@@ -77,6 +92,10 @@ def run_active() -> bool:
 def launch(cmd: list[str], label: str) -> None:
     config.OUT_DIR.mkdir(parents=True, exist_ok=True)
     env = {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUNBUFFERED": "1"}
+    for k in ALL_KEYS:                       # ensure the subprocess gets the keys
+        v = get_secret(k)
+        if v:
+            env[k] = v
     log = open(RUN_LOG, "w", encoding="utf-8")
     st.session_state["proc"] = subprocess.Popen(
         [sys.executable, "-m", *cmd], cwd=str(ROOT), stdout=log, stderr=subprocess.STDOUT, env=env)
@@ -237,6 +256,18 @@ def leads_tab(df: pd.DataFrame | None, path: Path | None) -> None:
 
 
 def run_tab() -> None:
+    missing = [k for k in REQUIRED_KEYS if not get_secret(k)]
+    if missing:
+        st.error(
+            "⚠️ Missing API key(s): **" + ", ".join(missing) + "** — runs are disabled.\n\n"
+            "**Streamlit Cloud:** app menu (top-right) → **Settings → Secrets** → add:\n"
+            "```toml\nGOOGLE_PLACES_API_KEY = \"…\"\nOPENAI_API_KEY = \"…\"\nHUNTER_API = \"…\"\n```\n"
+            "then **Reboot app**.  **Local:** put them in `lead_engine/.env`."
+        )
+    else:
+        detected = [k.replace("_API_KEY", "").replace("_API", "").title() for k in REQUIRED_KEYS + OPTIONAL_KEYS if get_secret(k)]
+        st.caption("🔑 Keys detected: " + ", ".join(detected))
+
     st.markdown("##### Configure this run")
     c1, c2, c3 = st.columns(3)
     limit = c1.number_input("Max firms this run", 5, 5000, 75, step=5)
@@ -246,10 +277,11 @@ def run_tab() -> None:
     st.markdown("##### Launch")
     b1, b2, b3 = st.columns(3)
     busy = run_active()
-    if b1.button("🔍  Discover + score", disabled=busy, use_container_width=True, type="primary"):
+    blocked = busy or bool(missing)
+    if b1.button("🔍  Discover + score", disabled=blocked, use_container_width=True, type="primary"):
         launch(["lead_engine.run", "--limit", str(int(limit))], "Discovery + scoring")
         st.rerun()
-    if b2.button("📧  Find + verify contacts", disabled=busy, use_container_width=True, type="primary"):
+    if b2.button("📧  Find + verify contacts", disabled=blocked, use_container_width=True, type="primary"):
         cmd = ["lead_engine.verify_contacts", "--limit", str(int(limit))]
         if passed_only:
             cmd.append("--passed-only")

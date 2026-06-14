@@ -38,7 +38,12 @@ def _domain(url: str | None) -> str | None:
 
 def search(practice_area: str, city: str, max_results: int = 60) -> list[dict]:
     """Text-search one practice_area x city. Paginates up to ~60 results."""
-    api_key = os.environ["GOOGLE_PLACES_API_KEY"]
+    api_key = os.environ.get("GOOGLE_PLACES_API_KEY")
+    if not api_key:
+        raise RuntimeError(
+            "GOOGLE_PLACES_API_KEY is not set. On Streamlit Cloud add it under "
+            "Settings -> Secrets and reboot; locally put it in lead_engine/.env."
+        )
     query = f"{practice_area} lawyer in {city}"
     headers = {
         "Content-Type": "application/json",
