@@ -228,13 +228,14 @@ def leads_tab(df: pd.DataFrame | None, path: Path | None) -> None:
         return
     has_contacts = "email" in df.columns
 
-    f1, f2, f3, f4 = st.columns([1.2, 1.4, 1, 1])
+    f1, f2, f3, f4, f5 = st.columns([1.2, 1.4, 1, 1, 1])
     tiers = f1.multiselect("Tier", ["A", "B", "C"], default=["A", "B"])
     pa_opts = sorted({p for cell in df.get("practice_areas", pd.Series([], dtype=str))
                       for p in str(cell).split("; ") if p})
     pa_sel = f2.multiselect("Practice area", pa_opts)
     only_email = f3.checkbox("Has email", value=False)
-    only_valid = f4.checkbox("Verified only", value=False)
+    only_linkedin = f4.checkbox("Has LinkedIn", value=False)
+    only_valid = f5.checkbox("Verified only", value=False)
 
     view = df.copy()
     if "passes_icp" in view.columns:
@@ -245,6 +246,8 @@ def leads_tab(df: pd.DataFrame | None, path: Path | None) -> None:
         view = view[view["practice_areas"].apply(lambda c: any(p in str(c) for p in pa_sel))]
     if only_email and has_contacts:
         view = view[view["email"] != ""]
+    if only_linkedin and "linkedin" in view.columns:
+        view = view[view["linkedin"] != ""]
     if only_valid and has_contacts:
         view = view[view["email_status"] == "valid"]
 
