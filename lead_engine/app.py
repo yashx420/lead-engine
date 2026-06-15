@@ -133,6 +133,41 @@ def to_excel(df: pd.DataFrame) -> bytes:
     return buf.getvalue()
 
 
+# Words that mark where a firm's brand ends and the descriptor begins, e.g.
+# "Sandoval & James Car Accident Lawyers" -> brand "Sandoval & James".
+FIRM_DESC_KEYWORDS = {
+    "law", "lawyer", "lawyers", "attorney", "attorneys", "legal", "firm", "group",
+    "office", "offices", "associates", "personal", "injury", "injuries", "accident",
+    "accidents", "car", "truck", "criminal", "defense", "family", "immigration",
+    "employment", "workers", "compensation", "dui", "dwi", "trial", "justice",
+    "advocates", "counsel", "litigation", "disability", "malpractice", "divorce",
+    "bankruptcy", "estate", "pllc", "llp",
+}
+NAME_SUFFIXES = {"jr", "sr", "esq", "esquire", "ii", "iii", "iv", "dr", "mr", "ms", "mrs"}
+
+
+def split_firm(name: str) -> tuple[str, str]:
+    """('XYZ Car Accident Lawyers Austin') -> ('XYZ', 'Car Accident Lawyers Austin')."""
+    toks = str(name).split()
+    for i, t in enumerate(toks):
+        if i > 0 and re.sub(r"[^a-z&]", "", t.lower()) in FIRM_DESC_KEYWORDS:
+            return " ".join(toks[:i]).rstrip(",;:- "), " ".join(toks[i:])
+    return str(name), ""
+
+
+def parse_dm(dm: str) -> tuple[str, str, str]:
+    """'Jane Smith (Managing Partner)' -> ('Jane', 'Smith', 'Managing Partner')."""
+    dm = str(dm)
+    mt = re.search(r"\(([^)]*)\)\s*$", dm)
+    title = mt.group(1).strip() if mt else ""
+    name = re.sub(r"\s*\([^)]*\)\s*$", "", dm).strip()
+    parts = [p for p in re.split(r"[\s,]+", name)
+             if p and p.strip(".").isalpha() and p.lower().strip(".") not in NAME_SUFFIXES]
+    if len(parts) >= 2:
+        return parts[0], parts[-1], title
+    return (parts[0], "", title) if parts else ("", "", title)
+
+
 TIER_BADGE = {"A": "🟢 A", "B": "🟡 B", "C": "⚪ C"}
 STATUS_BADGE = {
     "valid": "✅ Valid", "risky_catchall": "⚠️ Catch-all", "mx_only": "🔵 MX-only",
@@ -216,9 +251,21 @@ def leads_tab(df: pd.DataFrame | None, path: Path | None) -> None:
     st.caption(f"Showing **{len(view)}** of {len(df)} leads"
                + (f" · updated {time.strftime('%b %d %H:%M', time.localtime(path.stat().st_mtime))}" if path else ""))
 
+    # derive split columns on the raw frame so they appear in the table AND downloads
+    view = view.copy()
+    fb = view.get("firm_name", pd.Series([""] * len(view))).apply(split_firm)
+    view["firm_brand"] = fb.apply(lambda x: x[0])
+    view["firm_detail"] = fb.apply(lambda x: x[1])
+    if "decision_maker" in view.columns:
+        nm = view["decision_maker"].apply(parse_dm)
+        view["first_name"] = nm.apply(lambda x: x[0])
+        view["last_name"] = nm.apply(lambda x: x[1])
+        view["title"] = nm.apply(lambda x: x[2])
+
     # build a display frame with friendly badges
     disp = pd.DataFrame()
-    disp["Firm"] = view.get("firm_name", "")
+    disp["Firm"] = view["firm_brand"]
+    disp["Firm detail"] = view["firm_detail"]
     disp["City"] = view.get("query_city", view.get("state", ""))
     disp["Practice"] = view.get("practice_areas", "")
     disp["Attys"] = pd.to_numeric(view.get("attorney_count", ""), errors="coerce")
@@ -227,7 +274,9 @@ def leads_tab(df: pd.DataFrame | None, path: Path | None) -> None:
     disp["Tier"] = (view["priority_tier"].map(lambda t: TIER_BADGE.get(t, t))
                     if "priority_tier" in view.columns else "")
     if has_contacts:
-        disp["Decision maker"] = view.get("decision_maker", "")
+        disp["First"] = view.get("first_name", "")
+        disp["Last"] = view.get("last_name", "")
+        disp["Title"] = view.get("title", "")
         disp["Email"] = view.get("email", "")
         disp["Status"] = (view["email_status"].map(lambda s: STATUS_BADGE.get(s, s))
                           if "email_status" in view.columns else "")
