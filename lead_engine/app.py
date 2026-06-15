@@ -232,6 +232,7 @@ def leads_tab(df: pd.DataFrame | None, path: Path | None) -> None:
         disp["Status"] = (view["email_status"].map(lambda s: STATUS_BADGE.get(s, s))
                           if "email_status" in view.columns else "")
         disp["Conf"] = pd.to_numeric(view.get("email_confidence", ""), errors="coerce")
+        disp["LinkedIn"] = view.get("linkedin", "")
     disp["Phone"] = view.get("phone", "")
     disp["Website"] = view.get("website", "")
 
@@ -245,6 +246,7 @@ def leads_tab(df: pd.DataFrame | None, path: Path | None) -> None:
     }
     if has_contacts:
         colcfg["Conf"] = st.column_config.ProgressColumn("Conf", min_value=0, max_value=100, format="%d")
+        colcfg["LinkedIn"] = st.column_config.LinkColumn(display_text="in ↗")
     st.dataframe(disp, use_container_width=True, hide_index=True, height=470, column_config=colcfg)
 
     d1, d2, _ = st.columns([1, 1, 3])

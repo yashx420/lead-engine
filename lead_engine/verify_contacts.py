@@ -27,7 +27,7 @@ from . import config, contact, enrich
 
 VERIFIED_CSV = config.OUT_DIR / "leads_verified.csv"
 NEW_FIELDS = [
-    "email", "email_type", "email_source", "decision_maker", "email_mx",
+    "email", "email_type", "email_source", "decision_maker", "linkedin", "email_mx",
     "email_smtp", "email_status", "email_confidence", "candidates_tried",
     "phone_present", "website_live",
 ]

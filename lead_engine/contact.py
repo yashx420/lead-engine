@@ -26,6 +26,7 @@ from . import config, enrich
 
 EMAIL_RE = re.compile(r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}")
 CFEMAIL_RE = re.compile(r'data-cfemail="([0-9a-fA-F]+)"')
+LINKEDIN_RE = re.compile(r"https?://(?:[a-z]{2,3}\.)?linkedin\.com/in/[A-Za-z0-9\-_%]+", re.I)
 
 # Role/shared mailboxes — usable but not a named decision maker.
 ROLE_PREFIXES = {
@@ -82,6 +83,24 @@ def _emails_from_html(html: str, domain: str) -> set[str]:
             continue
         out.add(email)
     return out
+
+
+def _linkedin_from_html(html: str) -> set[str]:
+    """Personal LinkedIn profile URLs (/in/...) found on the page."""
+    return {m.split("?")[0].rstrip("/") for m in LINKEDIN_RE.findall(html)}
+
+
+def _pick_linkedin(found: set[str], first: str, last: str, hunter_url: str = "") -> str:
+    """Best LinkedIn for the decision maker: Hunter's > name-matched scrape > sole scrape."""
+    if hunter_url:
+        return hunter_url
+    if not found:
+        return ""
+    for url in found:
+        slug = url.rsplit("/in/", 1)[-1].lower()
+        if (last and last in slug) or (first and len(first) > 2 and first in slug):
+            return url
+    return next(iter(found)) if len(found) == 1 else ""  # blank if ambiguous
 
 
 def gather_emails(website: str, domain: str, http: httpx.Client, browser=None) -> list[str]:
@@ -273,11 +292,12 @@ def _pick_decision_maker(people: list[Attorney]) -> Attorney | None:
 
 
 def _result(email: str, etype: str, source: str, verify: dict, dm: str = "",
-            cands: str = "", website_live: bool = False) -> dict:
+            cands: str = "", website_live: bool = False, linkedin: str = "") -> dict:
     """Flatten an email choice + its verification into one scalar dict for CSV."""
     return {
         "email": email, "email_type": etype, "email_source": source,
-        "decision_maker": dm, "candidates_tried": cands, "website_live": website_live,
+        "decision_maker": dm, "linkedin": linkedin, "candidates_tried": cands,
+        "website_live": website_live,
         "email_mx": verify["mx"], "email_smtp": verify["smtp"],
         "email_status": verify["status"], "email_confidence": verify["confidence"],
     }
@@ -314,7 +334,8 @@ def hunter_find(domain: str, first: str, last: str, api_key: str) -> dict | None
     else:
         status = "mx_only"
     return {"email": email.lower(), "mx": True, "smtp": f"hunter:{vstat or score}",
-            "status": status, "confidence": score}
+            "status": status, "confidence": score,
+            "linkedin": data.get("linkedin_url") or data.get("linkedin") or ""}
 
 
 def find_best_email(website: str, domain: str, http: httpx.Client, llm: openai.OpenAI,
@@ -325,8 +346,9 @@ def find_best_email(website: str, domain: str, http: httpx.Client, llm: openai.O
     nothing free confirmed) > best unconfirmed fallback > published role inbox.
     Returns a flat dict (see _result) ready to merge into a CSV row.
     """
-    # Scrape homepage + contact/attorney pages: collect published emails + page text.
+    # Scrape homepage + contact/attorney pages: collect emails, LinkedIn URLs, page text.
     emails: set[str] = set()
+    linkedins: set[str] = set()
     texts: list[str] = []
     reachable = False
     for url in [website] + [website.rstrip("/") + p for p in CONTACT_PATHS]:
@@ -335,12 +357,14 @@ def find_best_email(website: str, domain: str, http: httpx.Client, llm: openai.O
             continue
         reachable = True
         emails |= _emails_from_html(html, domain)
+        linkedins |= _linkedin_from_html(html)
         texts.append(enrich._clean_text(html))
         if any(classify(e) == "personal" for e in emails):
             break
 
     def done(email="", etype="", source="", verify=_EMPTY_VERIFY, dm="", cands=""):
-        return _result(email, etype, source, verify, dm, cands, website_live=reachable)
+        li = _pick_linkedin(linkedins, first, last, str(verify.get("linkedin", "") or ""))
+        return _result(email, etype, source, verify, dm, cands, website_live=reachable, linkedin=li)
 
     pub, ptype = best_email(sorted(emails))
     people = extract_people(llm, " ".join(texts))
