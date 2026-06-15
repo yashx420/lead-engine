@@ -73,6 +73,21 @@ def main(argv: list[str] | None = None) -> int:
 
     out_fields = list(in_fields) + [c for c in NEW_FIELDS if c not in in_fields]
     VERIFIED_CSV.parent.mkdir(parents=True, exist_ok=True)
+
+    # Migrate an older verified file if the schema changed (e.g. new 'linkedin'
+    # column) so appended rows stay column-aligned. Backfills missing cells.
+    if VERIFIED_CSV.exists():
+        with VERIFIED_CSV.open(newline="", encoding="utf-8") as f:
+            existing = list(csv.DictReader(f))
+        old_fields = list(existing[0].keys()) if existing else []
+        if old_fields and old_fields != out_fields:
+            with VERIFIED_CSV.open("w", newline="", encoding="utf-8") as f:
+                mw = csv.DictWriter(f, fieldnames=out_fields, extrasaction="ignore")
+                mw.writeheader()
+                for row in existing:
+                    mw.writerow({k: row.get(k, "") for k in out_fields})
+            print(f"Migrated {len(existing)} existing rows to new schema (+{[c for c in out_fields if c not in old_fields]}).")
+
     new_file = not VERIFIED_CSV.exists()
     browser = None if args.no_browser else enrich.BrowserFetcher()
     llm = openai.OpenAI()
